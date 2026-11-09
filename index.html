@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="FibroScan 助手" />
+  <meta name="theme-color" content="#0b1f33" />
+  <title>FibroScan 報告解讀助手</title>
+  <meta name="description" content="前線用 CAP MEAN 與 E MEDIAN 解讀助手（按 Fibroscan Interpretation Cut-off Table_2026）" />
+  <meta property="og:title" content="FibroScan 報告解讀助手" />
+  <meta property="og:description" content="前線用 CAP MEAN 與 E MEDIAN 解讀助手（按 2026 cut-off 參考表）" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="assets/ref-cap-intro.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="FibroScan 報告解讀助手" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script>
+    window.pdfjsLibReady = new Promise((resolve) => {
+      window.__resolvePdfjs = resolve;
+    });
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      window.__resolvePdfjs && window.__resolvePdfjs();
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <h1>FibroScan 報告解讀助手</h1>
+      <div class="sub">FibroScan Report Explainer · CAP + E</div>
+      <div class="clinic">Operation / 前線專用 · Cut-off Table 2026</div>
+      <button type="button" class="header-link" id="btn-open-cutoff">查看 Cut-off 參考表</button>
+    </header>
+
+    <!-- HOME -->
+    <section id="screen-home" class="screen active">
+      <div class="hero-card">
+        <h2>輸入報告上的兩個主要數字</h2>
+        <p>
+          只需用報告上的
+          <strong class="c-cap">CAP MEAN</strong>（dB/m）與
+          <strong class="c-e">E MEDIAN</strong>（kPa＝肝臟硬度 LSM）。
+        </p>
+        <div class="mini-ref" aria-hidden="true">
+          <div class="mini-cap">
+            <div class="mh">CAP (dB/m)</div>
+            <div class="mm">MEAN</div>
+            <div class="mv">189</div>
+          </div>
+          <div class="mini-e">
+            <div class="mh">E (kPa)</div>
+            <div class="mm">MEDIAN</div>
+            <div class="mv">4.9</div>
+          </div>
+        </div>
+        <p class="tiny">拍攝／上載可自動擷取；亦可手動輸入。約 1 分鐘完成。</p>
+      </div>
+
+      <div class="action-grid">
+        <button type="button" class="action-btn" id="btn-camera">
+          <span class="icon">📷</span>
+          <span>
+            <div class="label">拍攝報告</div>
+            <div class="hint">擷取 CAP MEAN 與 E MEDIAN</div>
+          </span>
+        </button>
+        <button type="button" class="action-btn" id="btn-image">
+          <span class="icon">📁</span>
+          <span>
+            <div class="label">上載圖片</div>
+            <div class="hint">JPG / PNG</div>
+          </span>
+        </button>
+        <button type="button" class="action-btn" id="btn-pdf">
+          <span class="icon">📄</span>
+          <span>
+            <div class="label">上載 PDF</div>
+            <div class="hint">文字層優先，必要時 OCR</div>
+          </span>
+        </button>
+        <button type="button" class="action-btn" id="btn-manual">
+          <span class="icon">⌨️</span>
+          <span>
+            <div class="label">手動輸入 CAP + E</div>
+            <div class="hint">最快、最準</div>
+          </span>
+        </button>
+      </div>
+
+      <input type="file" id="file-camera" class="sr-only" accept="image/*" capture="environment" />
+      <input type="file" id="file-image" class="sr-only" accept="image/*" />
+      <input type="file" id="file-pdf" class="sr-only" accept="application/pdf,.pdf" />
+
+      <div class="alert info" style="margin-top:16px">
+        判讀依據：<strong>Fibroscan Interpretation Cut-off Table_2026</strong>。
+        E (kPa) MEDIAN ＝ Liver Stiffness Measurement (LSM) 肝臟硬度。
+      </div>
+      <button type="button" class="btn btn-secondary btn-block" id="btn-home-cutoff" style="margin-top:12px">查看 Cut-off 參考表</button>
+
+      <details class="collapse principle-home" open>
+        <summary>📖 FibroScan 是什麼？（簡單原理）</summary>
+        <div class="body" id="what-fibro-home"></div>
+      </details>
+    </section>
+
+    <!-- PROCESSING -->
+    <section id="screen-processing" class="screen">
+      <div class="card progress-wrap">
+        <div class="spinner" aria-hidden="true"></div>
+        <h2 style="margin:0 0 8px">正在擷取 CAP 與 E</h2>
+        <p class="muted" id="process-status">準備中…</p>
+        <div class="progress-bar"><span id="process-bar"></span></div>
+        <div class="alert danger hidden" id="process-error"></div>
+        <div style="margin-top:20px; display:grid; gap:8px">
+          <button type="button" class="btn btn-secondary btn-block" id="btn-process-manual">改為手動輸入</button>
+          <button type="button" class="btn btn-ghost btn-block" id="btn-process-home">返回主頁</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONFIRM -->
+    <section id="screen-confirm" class="screen">
+      <div class="card">
+        <h2 style="margin:0 0 6px">請核對報告資料</h2>
+        <p class="muted">只核對報告上兩個主要數字。可人手修改；無法確認請留空。</p>
+      </div>
+
+      <div class="confirm-duo">
+        <!-- CAP -->
+        <div class="confirm-card cap">
+          <div class="cc-head">CAP <span class="u">(dB/m)</span></div>
+          <div class="cc-stat">MEAN</div>
+          <div class="field-row big">
+            <input type="number" inputmode="decimal" step="1" id="input-cap" placeholder="—" />
+          </div>
+          <div class="cc-sub">受控衰減參數 · 肝臟脂肪</div>
+        </div>
+        <!-- E / LSM -->
+        <div class="confirm-card e">
+          <div class="cc-head">E <span class="u">(kPa)</span></div>
+          <div class="cc-stat">MEDIAN</div>
+          <div class="field-row big">
+            <input type="number" inputmode="decimal" step="0.1" id="input-lsm" placeholder="—" />
+          </div>
+          <div class="cc-sub">Liver Stiffness (LSM) 肝臟硬度</div>
+        </div>
+      </div>
+
+      <details class="collapse advanced">
+        <summary>進階／可選欄位（通常不用）</summary>
+        <div class="body adv-fields">
+          <div class="field">
+            <label>CAP SD（可選）</label>
+            <input type="number" inputmode="decimal" step="1" id="input-cap-sd" />
+          </div>
+          <div class="field">
+            <label>IQR / Med（% 或小數，可選）</label>
+            <input type="number" inputmode="decimal" step="0.01" id="input-iqr-median" />
+          </div>
+          <div class="field">
+            <label>IQR（kPa，可選）</label>
+            <input type="number" inputmode="decimal" step="0.1" id="input-iqr" />
+          </div>
+          <div class="field">
+            <label>Probe Type</label>
+            <input type="text" id="input-probe" placeholder="例如 M / XL" />
+          </div>
+          <div class="field">
+            <label>Valid Measurements</label>
+            <input type="text" id="input-valid" />
+          </div>
+          <div class="field">
+            <label>Success Rate (%)</label>
+            <input type="number" inputmode="decimal" step="1" id="input-success" />
+          </div>
+          <div class="field">
+            <label>ALT（若報告有列出）</label>
+            <div class="field-row">
+              <input type="number" inputmode="decimal" step="1" id="input-alt-value" />
+              <span class="unit">U/L</span>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <div class="card">
+        <div class="checkbox-row">
+          <input type="checkbox" id="confirm-check" />
+          <label for="confirm-check">我已核對 CAP MEAN 與 E MEDIAN 與原始 FibroScan 報告一致</label>
+        </div>
+        <button type="button" class="btn btn-primary btn-block" id="btn-confirm-continue" disabled>確認並繼續</button>
+        <button type="button" class="btn btn-ghost btn-block" id="btn-confirm-back">返回</button>
+      </div>
+    </section>
+
+    <!-- CLINICAL -->
+    <section id="screen-clinical" class="screen">
+      <div class="card">
+        <h2 style="margin:0 0 6px">臨床背景</h2>
+        <p class="muted">客人是否有以下已知肝臟情況？此選擇決定使用哪一列指定 reference cut-off。</p>
+
+        <div class="radio-list">
+          <label class="radio-item">
+            <input type="radio" name="background" value="none" />
+            <span>
+              <div class="rtitle">沒有已知肝病</div>
+              <div class="rdesc">對照健康參考範圍 2.3–5.9 kPa（不作 F0–F4 staging）</div>
+            </span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="background" value="unknown" />
+            <span>
+              <div class="rtitle">不清楚</div>
+              <div class="rdesc">不套用疾病專屬 cut-off，需醫護確認</div>
+            </span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="background" value="hbv" />
+            <span>
+              <div class="rtitle">Hepatitis B (HBV) 乙型肝炎</div>
+              <div class="rdesc">需再選擇 ALT 情況</div>
+            </span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="background" value="hcv" />
+            <span><div class="rtitle">Hepatitis C (HCV) 丙型肝炎</div></span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="background" value="nafld" />
+            <span>
+              <div class="rtitle">NAFLD / MASLD 脂肪性肝病</div>
+              <div class="rdesc">採用 NAFLD row</div>
+            </span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="background" value="alcohol" />
+            <span>
+              <div class="rtitle">Alcohol-related Liver Disease 酒精相關肝病</div>
+              <div class="rdesc">注意：5.9–7.8 kPa 為表格未定義區間</div>
+            </span>
+          </label>
+        </div>
+
+        <div id="hbv-alt-block" class="hidden">
+          <h3 style="font-size:0.95rem; margin:8px 0">Alanine Aminotransferase (ALT) 丙氨酸轉氨酶情況</h3>
+          <p class="muted" style="margin-bottom:8px">如果不知道，不可以假設為 Normal。</p>
+          <div class="radio-list">
+            <label class="radio-item">
+              <input type="radio" name="alt-status" value="normal" />
+              <span><div class="rtitle">Normal ALT</div></span>
+            </label>
+            <label class="radio-item">
+              <input type="radio" name="alt-status" value="elevated" />
+              <span><div class="rtitle">Elevated ALT</div></span>
+            </label>
+            <label class="radio-item">
+              <input type="radio" name="alt-status" value="unknown" />
+              <span>
+                <div class="rtitle">不清楚</div>
+                <div class="rdesc">不會套用 HBV cut-off</div>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <button type="button" class="btn btn-primary btn-block" id="btn-clinical-continue" disabled>產生報告摘要</button>
+        <button type="button" class="btn btn-ghost btn-block" id="btn-clinical-back">返回修改資料</button>
+      </div>
+    </section>
+
+    <!-- RESULT -->
+    <section id="screen-result" class="screen">
+      <h2 class="result-title">FibroScan 報告摘要</h2>
+      <div class="alert info">
+        報告數據 ＋ 按 2026 reference 整理摘要。E (kPa) MEDIAN ＝ LSM 肝臟硬度。
+        <button type="button" class="linkish" id="btn-result-cutoff">查看 Cut-off 參考表</button>
+      </div>
+
+      <div class="result-duo">
+        <div class="metric-card cap" id="card-cap">
+          <div class="metric-label">CAP <span class="u">(dB/m)</span></div>
+          <div class="metric-stat">MEAN</div>
+          <div class="metric-value" id="cap-value">—</div>
+          <div class="metric-sd" id="cap-sd-line"></div>
+          <div class="metric-meta" id="cap-assess"></div>
+          <div class="pill yellow" id="cap-pill">🟡 需要留意</div>
+        </div>
+
+        <div class="metric-card e" id="card-lsm">
+          <div class="metric-label">E <span class="u">(kPa)</span></div>
+          <div class="metric-stat">MEDIAN</div>
+          <div class="metric-value" id="lsm-value">—</div>
+          <div class="metric-lsm-hint">Liver Stiffness (LSM) 肝臟硬度</div>
+          <div class="metric-sd" id="iqr-med-line"></div>
+          <div class="metric-meta" id="lsm-assess"></div>
+          <div class="metric-meta" id="lsm-ref-used"></div>
+          <div class="pill yellow" id="lsm-pill">🟡 需要留意</div>
+        </div>
+      </div>
+
+
+      <details class="collapse" open>
+        <summary>📖 FibroScan 是什麼？</summary>
+        <div class="body" id="what-fibro-result"></div>
+      </details>
+
+      <details class="collapse" open>
+        <summary>簡單理解</summary>
+        <div class="body" id="simple-body"></div>
+      </details>
+
+      <details class="collapse" open>
+        <summary>💬 如何向客人解釋？</summary>
+        <div class="body"><div class="talk-box" id="talk-body"></div></div>
+      </details>
+
+      <details class="collapse">
+        <summary>👨‍⚕️ Professional Notes</summary>
+        <div class="body" id="prof-body"></div>
+      </details>
+
+      <details class="collapse" open>
+        <summary>🥗 日常生活小建議</summary>
+        <div class="body" id="lifestyle-body"></div>
+      </details>
+
+      <details class="collapse">
+        <summary>📋 建議下一步</summary>
+        <div class="body" id="next-body"></div>
+      </details>
+
+      <details class="collapse">
+        <summary>⚠️ 前線提醒</summary>
+        <div class="body" id="warn-body"></div>
+      </details>
+    </section>
+
+    <!-- DONE -->
+    <section id="screen-done" class="screen">
+      <div class="card done-screen">
+        <div class="check">✓</div>
+        <h2 style="margin:0 0 8px">已完成</h2>
+        <p class="muted">如需處理下一份報告，可返回主頁重新開始。</p>
+        <button type="button" class="btn btn-primary btn-block" id="btn-home" style="margin-top:20px">返回主頁</button>
+      </div>
+    </section>
+
+    <div class="bottom-bar" id="bottom-bar">
+      <button type="button" class="btn btn-secondary" id="btn-edit">修改資料</button>
+      <button type="button" class="btn btn-secondary" id="btn-rescan">重新掃描</button>
+      <button type="button" class="btn btn-primary" id="btn-done">完成</button>
+    </div>
+
+    <!-- CUTOFF MODAL -->
+    <div id="cutoff-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="cutoff-modal-title">
+      <div class="modal-backdrop" id="cutoff-backdrop"></div>
+      <div class="modal-sheet">
+        <div class="modal-head">
+          <h2 id="cutoff-modal-title">Cut-off 參考表 2026</h2>
+          <button type="button" class="modal-close" id="btn-close-cutoff" aria-label="關閉">×</button>
+        </div>
+        <div class="modal-body" id="cutoff-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/reference.js"></script>
+  <script src="js/diagrams.js"></script>
+  <script src="js/cutoff-view.js"></script>
+  <script src="js/interpret.js"></script>
+  <script src="js/ocr.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
